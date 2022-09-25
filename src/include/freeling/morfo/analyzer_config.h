@@ -63,22 +63,6 @@ namespace freeling {
   // analyzer_config error status
   typedef enum {CFG_OK,CFG_WARNING, CFG_ERROR} CFG_status;
 
-  
-////////////////////////////////////////////////////////////////
-/// 
-///  Class analyzer is a meta class that just calls all modules in
-///  FreeLing in the right order.
-///  Its construction options allow to instantiate different kinds of
-///  analysis pipelines, and or different languages.
-///  Also, invocation options may be altered at each call, 
-///  tuning the analysis to each particular sentence or document needs.
-///  For a finer control, underlying modules should be called directly.
-///
-////////////////////////////////////////////////////////////////
-
-class WINDLL analyzer_config {
-
- private:
 
    ////////////////////////////////////////////////////////////////
    /// 
@@ -102,6 +86,7 @@ class WINDLL analyzer_config {
        std::wstring MACO_UserMapFile, MACO_LocutionsFile,   MACO_QuantitiesFile,
          MACO_AffixFile,   MACO_ProbabilityFile, MACO_DictionaryFile, 
          MACO_NPDataFile,  MACO_PunctuationFile, MACO_CompoundFile;
+       bool MACO_InverseDictionary;
        double MACO_ProbabilityThreshold;
        /// Phonetics config file
        std::wstring PHON_PhoneticsFile;
@@ -116,9 +101,6 @@ class WINDLL analyzer_config {
        int TAGGER_RelaxMaxIter;
        double TAGGER_RelaxScaleFactor;
        double TAGGER_RelaxEpsilon;
-       bool TAGGER_Retokenize;
-       int TAGGER_kbest;
-       ForceSelectStrategy TAGGER_ForceSelect;
        /// Chart parser config file
        std::wstring PARSER_GrammarFile;
        /// Dependency parsers config files
@@ -167,6 +149,11 @@ class WINDLL analyzer_config {
        bool PHON_Phonetics;
        bool NEC_NEClassification;
 
+       /// PoS Tagger options
+       bool TAGGER_Retokenize;
+       int TAGGER_kbest;
+       ForceSelectStrategy TAGGER_ForceSelect;
+
        /// Select which tagger, parser, or sense annotator to use
        WSDAlgorithm SENSE_WSD_which;
        TaggerAlgorithm TAGGER_which;
@@ -182,11 +169,28 @@ class WINDLL analyzer_config {
        std::wstring dump() const;
    };
 
- protected:
+  
+////////////////////////////////////////////////////////////////
+/// 
+///  Class analyzer is a meta class that just calls all modules in
+///  FreeLing in the right order.
+///  Its construction options allow to instantiate different kinds of
+///  analysis pipelines, and or different languages.
+///  Also, invocation options may be altered at each call, 
+///  tuning the analysis to each particular sentence or document needs.
+///  For a finer control, underlying modules should be called directly.
+///
+////////////////////////////////////////////////////////////////
+
+class WINDLL analyzer_config {
+
+ private: 
    po::options_description cl_opts; // command-line options
    po::options_description cf_opts; // config file options
-   po::variables_map vm;  // variable map for option parser
-   
+
+   /// expand paths in filenames, and handle boolean command line options --xx/--noxx
+   void expand_options(const po::variables_map &vm);
+ 
  public:
    ////////////////////////////////////////////////////////////////
    ///  class to handle configuration error states
@@ -197,26 +201,36 @@ class WINDLL analyzer_config {
      std::wstring description;
    };
 
-   typedef analyzer_config::analyzer_config_options config_options;
-   typedef analyzer_config::analyzer_invoke_options invoke_options;
+ //typedef analyzer_config_options config_options;
+ // typedef analyzer_invoke_options invoke_options;
 
-   config_options config_opt;
-   invoke_options invoke_opt;
+   analyzer_config_options config_opt;
+   analyzer_invoke_options invoke_opt;
 
    /// constructor
    analyzer_config();
    /// destructor
    ~analyzer_config();
 
-   /// load options from a config file
+   // access to options description, in case user wants to add some.
+   po::options_description& command_line_options();
+   po::options_description& config_file_options();
+
+   /// load options from a config file, ignore variables map
    void parse_options(const std::wstring &cfgFile);
-   /// load options from a config file + command line   
+   /// load options from a config file, update variables map
+   void parse_options(const std::wstring &cfgFile, po::variables_map &vm);
+   /// load options from command line, ignore variables map   
+   void parse_options(int ac, char *av[]);   
+   /// load options from command line, update variables map
+   void parse_options(int ac, char *av[], po::variables_map &vm);   
+   /// load options from a config file + command line, ignore variables map   
    void parse_options(const std::wstring &cfgFile, int ac, char *av[]);   
-   /// load options from a stream (auxiliary for the other constructors)
-   void parse_options(std::wistream &cfg, analyzer_config::config_options &config, analyzer_config::invoke_options &invoke);
+   /// load options from a config file + command line, update variables map
+   void parse_options(const std::wstring &cfgFile, int ac, char *av[], po::variables_map &vm);   
 
    // check invoke options
-   status check_invoke_options(const analyzer_config::invoke_options &opt) const; 
+   status check_invoke_options(const analyzer_invoke_options &opt) const; 
 
    // set boolean option depending on Command line flags
    static void SetBooleanOptionCL (const int pos, const int neg, bool &opt, const std::string &name);

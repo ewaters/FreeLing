@@ -365,7 +365,12 @@ config* load_config(int argc, char *argv[]) {
   /// Check that required configuration can satisfy required requests
   /// 'analyzer' constructor will check most of them, so we only need to worry about lang ident
   if (cfg->LangIdent and cfg->IDENT_identFile.empty()) {
-    wcerr <<L"Error - No configuration file provided for language identifier."<<endl;
+    wcerr << L"Error - No configuration file provided for language identifier."<<endl;
+    exit (1);        
+  }
+
+  if (cfg->LangIdent and cfg->LangIdentMode != L"best" and cfg->LangIdentMode != L"all") {
+    wcerr << L"Error - Invalid language identifier mode '" << cfg->LangIdentMode << "'." << endl;
     exit (1);        
   }
   
@@ -404,17 +409,17 @@ config* load_config(int argc, char *argv[]) {
       and (cfg->invoke_opt.InputLevel>DEP
            or cfg->invoke_opt.OutputLevel<DEP)) cfg->config_opt.PARSER_GrammarFile = L"";
   if (not cfg->config_opt.DEP_TxalaFile.empty() 
-      and ((cfg->invoke_opt.DEP_which!=TXALA and cfg->invoke_opt.OutputLevel<COREF)
-           or (cfg->invoke_opt.InputLevel>DEP
-               or cfg->invoke_opt.OutputLevel<PARSED))) cfg->config_opt.DEP_TxalaFile = L"";
+      and (cfg->invoke_opt.DEP_which!=TXALA 
+           or cfg->invoke_opt.InputLevel>DEP
+	   or cfg->invoke_opt.OutputLevel<PARSED)) cfg->config_opt.DEP_TxalaFile = L"";
   if (not cfg->config_opt.DEP_TreelerFile.empty() 
-      and ((cfg->invoke_opt.DEP_which!=TREELER and cfg->invoke_opt.OutputLevel<COREF)
-           or (cfg->invoke_opt.InputLevel>DEP
-               or cfg->invoke_opt.OutputLevel<DEP))) cfg->config_opt.DEP_TreelerFile = L"";
+      and (cfg->invoke_opt.DEP_which!=TREELER
+	   or cfg->invoke_opt.InputLevel>DEP
+	   or cfg->invoke_opt.OutputLevel<DEP)) cfg->config_opt.DEP_TreelerFile = L"";
   if (not cfg->config_opt.DEP_LSTMFile.empty() 
-      and ((cfg->invoke_opt.DEP_which!=LSTM and cfg->invoke_opt.OutputLevel<COREF)
-           or (cfg->invoke_opt.InputLevel>DEP
-               or cfg->invoke_opt.OutputLevel<DEP))) cfg->config_opt.DEP_LSTMFile = L"";
+      and (cfg->invoke_opt.DEP_which!=LSTM
+           or cfg->invoke_opt.InputLevel>DEP
+	   or cfg->invoke_opt.OutputLevel<DEP)) cfg->config_opt.DEP_LSTMFile = L"";
   if (not cfg->config_opt.SRL_TreelerFile.empty()
       and (cfg->invoke_opt.InputLevel>=SRL 
            or cfg->invoke_opt.OutputLevel<SRL)) cfg->config_opt.SRL_TreelerFile = L"";
@@ -580,24 +585,31 @@ int main (int argc, char **argv) {
 
   // read configuration file and command-line options
   config *cfg = load_config(argc,argv);
-  
+
   /// set the locale to UTF to properly handle special characters.
   util::init_locale(cfg->Locale);
-
-  // create input/output handlers appropriate for requested type of input/output.
-  io::output_handler *out = create_output_handler(cfg);
-  io::input_handler *inp = create_input_handler(cfg);
 
   // create lang ident or analyzer, depending on requested output
   lang_ident *ident=NULL;
   analyzer *anlz=NULL;
-  if (cfg->LangIdent) 
+  io::output_handler *out;
+  io::input_handler *inp;
+  if (cfg->LangIdent) {
     ident = new lang_ident(cfg->IDENT_identFile);
-  else {
-    anlz = new analyzer(cfg->config_opt);
-    anlz->set_current_invoke_options(cfg->invoke_opt);
   }
+  else {
+    analyzer_config::status st = cfg->check_invoke_options(cfg->invoke_opt);
+    if (st.stat != CFG_OK) {
+      wcerr << st.description << endl;
+      if (st.stat == CFG_ERROR) exit (1);    
+    }
+        
+    // create input/output handlers appropriate for requested type of input/output.
+    out = create_output_handler(cfg);
+    inp = create_input_handler(cfg);
 
+    anlz = new analyzer(*cfg);
+  }
 
   if (ServerMode) {
     wcerr<<L"SERVER: Analyzers loaded."<<endl;
@@ -623,7 +635,16 @@ int main (int argc, char **argv) {
         // if it is a command, process it and go for next line
         if (CheckStatsCommands(text,*stats)) continue;
         // call the analyzer to identify language
-        OutputString (ident->identify_language(text)+L"\n");
+	if (cfg->LangIdentMode == L"best")
+	  OutputString (ident->identify_language(text)+L"\n");
+	else {
+	  vector<pair<double,wstring>> langs = ident->rank_languages(text);
+	  wstringstream res;
+	  for (auto p : langs) 
+	    res << L" " << p.second << L"=" << p.first; 
+	  OutputString (res.str().substr(1) + L"\n");
+	}
+	
       }
     }
  

@@ -1,5 +1,4 @@
 
-
 # For other libraries, add include directory to all projects and libraries
 include_directories(include)
 include_directories(zstr)
@@ -24,12 +23,10 @@ add_subdirectory(libfreeling)
 add_subdirectory(main)
 
 add_subdirectory(utilities)
-if(BUILD_TESTS)
-   add_subdirectory(tests)
-endif()
+add_subdirectory(tests)
 
 install(DIRECTORY include/ DESTINATION include
-        FILES_MATCHING PATTERN "*.h"
+        FILES_MATCHING PATTERN "*.h*"
         PATTERN "coref.h" EXCLUDE
         PATTERN "coref_fex.h" EXCLUDE)
 

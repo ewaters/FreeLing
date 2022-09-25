@@ -108,7 +108,7 @@ using namespace freeling;
 
 class config : public analyzer_config {
 
- public:
+public:
   std::wstring ConfigFile;
 
   /// Server mode on/off
@@ -126,6 +126,7 @@ class config : public analyzer_config {
   /// Configuration file for language identifier
   bool LangIdent = false;
   std::wstring IDENT_identFile;
+  std::wstring LangIdentMode;  // whether to output the whole list or just the topmost
 
   /// Default mode used to process input: 
   ///   DOC: load a document, then process it. 
@@ -143,17 +144,14 @@ class config : public analyzer_config {
   /// Tagset to use for shortening tags in output
   std::wstring TAGSET_TagsetFile;
 
-  /// auxiiay to read hex number
-  std::wstring tracemod;
-  
   /// constructor
   config(int ac, char **av) {
 
+    /// auxiliary to read hex number
+    std::wstring tracemod;  
     Port=0;
 
-    /// TODO  : canviar a wvalues, fer operator>> pels enums del main, 
-    
-    cl_opts.add_options()
+    command_line_options().add_options()
       ("help,h", "Help about command-line options.")
       ("help-cf", "Help about configuration file options.")
 #ifndef WIN32
@@ -165,7 +163,7 @@ class config : public analyzer_config {
       ("workers,w",po::wvalue<int>(&MaxWorkers)->default_value(DEFAULT_MAX_WORKERS),"Maximum number of workers to fork in server mode")
       ("queue,q",po::wvalue<int>(&QueueSize)->default_value(DEFAULT_QUEUE_SIZE),"Maximum number of waiting clients.")
       ("server","Activate server mode (default: off)")
-      ("ident","Produce language identification as output")
+      ("ident",po::wvalue<std::wstring>(&LangIdentMode),"Produce language identification as output (best: only most likely language, all: whole ranking)")
       ("flush","Consider each newline as a sentence end")
       ("noflush","Do not consider each newline as a sentence end")
       ("mode",po::wvalue<InputModes>(&InputMode),"Input mode (doc,corpus)")
@@ -179,13 +177,13 @@ class config : public analyzer_config {
       ("tmod,m",po::wvalue<std::wstring>(&tracemod),"Mask indicating which modules to trace")
       ;
  
-    cf_opts.add_options()
+    config_file_options().add_options()
       ("Locale",po::wvalue<std::wstring>(&Locale)->default_value(L"default","default"),"locale encoding of input text (\"default\"=en_US.UTF-8, \"system\"=current system locale, [other]=any valid locale string installed in the system (e.g. ca_ES.UTF-8,it_IT.UTF-8,...)")
       ("ServerMode",po::wvalue<bool>(&Server)->default_value(false),"Activate server mode (default: off)")
       ("ServerPort",po::wvalue<int>(&Port),"Port where server is to be started")
       ("ServerMaxWorkers",po::wvalue<int>(&MaxWorkers)->default_value(DEFAULT_MAX_WORKERS),"Maximum number of workers to fork in server mode")
       ("ServerQueueSize",po::wvalue<int>(&QueueSize)->default_value(DEFAULT_QUEUE_SIZE),"Maximum number of waiting requests in server mode")
-      ("LangIdent",po::wvalue<bool>(&LangIdent)->default_value(false),"Produce language identification as output")
+      ("LangIdent",po::wvalue<std::wstring>(&LangIdentMode),"Produce language identification as output (best: only most likely language, all: whole ranking)")
       ("AlwaysFlush",po::wvalue<bool>(&AlwaysFlush)->default_value(false),"Consider each newline as a sentence end")
       ("InputMode",po::wvalue<InputModes>(&InputMode)->default_value(MODE_CORPUS),"Input mode (corpus,doc)")
       ("OutputFormat",po::wvalue<OutputFormats>(&OutputFormat)->default_value(OUT_FREELING),"Output format (freeling,conll,train,xml,json,naf)")
@@ -198,9 +196,11 @@ class config : public analyzer_config {
       ("TraceModule",po::wvalue<std::wstring>(&tracemod)->default_value(L"0x0","0x0"),"Mask indicating which modules to trace")
       ;
 
+    // variable map for option parser
+    po::variables_map vm;  
     
     try {
-      po::store(po::parse_command_line(ac, av, cl_opts), vm);
+      po::store(po::parse_command_line(ac, av, command_line_options()), vm);
       po::notify(vm);    
     } 
     catch (std::exception &e) {
@@ -220,41 +220,40 @@ class config : public analyzer_config {
 
     // Help screen required
     if (vm.count("help")) {
-      std::cerr<<cl_opts<<std::endl;
+      std::cerr<<command_line_options()<<std::endl;
       exit(0); // return to system
     }
 
     // Help screen required
     if (vm.count("help-cf")) {
-      std::cerr<<cf_opts<<std::endl;
+      std::cerr<<config_file_options()<<std::endl;
       exit(0); // return to system
     }
 
-
-    // Unless lang ident, load config file.
-    if (not LangIdent) {
-      if (ConfigFile.empty()) {
-        std::cerr<<"Configuration file not specified. Please use option -f to provide a configuration file." << std::endl;
-        exit(1);
-      }
-
-      // parse ConfigFile for more options
-      parse_options(ConfigFile);
-    }
-    
     // Handle boolean options expressed with --myopt or --nomyopt in command line
     analyzer_config::SetBooleanOptionCL(vm.count("server"),!vm.count("server"),Server,"server");
-    analyzer_config::SetBooleanOptionCL(vm.count("ident"),!vm.count("ident"),LangIdent,"ident");
-    analyzer_config::SetBooleanOptionCL(vm.count("flush"),vm.count("noflush"),AlwaysFlush,"flush");    
+    analyzer_config::SetBooleanOptionCL(vm.count("flush"),vm.count("noflush"),AlwaysFlush,"flush");
+    
+    // Unless lang ident, load config file.
+    LangIdent = not LangIdentMode.empty();
+    if (not LangIdent and ConfigFile.empty()) {
+        std::cerr<<"Configuration file not specified. Please use option -f to provide a configuration file." << std::endl;
+        exit(1);      
+    }
+    // parse ConfigFile for more options
+    parse_options(ConfigFile, vm);
 
-    // check options involving Filenames for environment vars expansion.
-    IDENT_identFile = util::expand_filename(IDENT_identFile);
-    TAGSET_TagsetFile = util::expand_filename(TAGSET_TagsetFile);
-
+    // check if lang ident was requested in config file
+    LangIdent = not LangIdentMode.empty();
+    
     /// convert hex string to actual value
     std::wstringstream s;
     s << std::hex << tracemod;
     s >> traces::TraceModule;
+
+    // check options involving Filenames for environment vars expansion.
+    IDENT_identFile = util::expand_filename(IDENT_identFile);
+    TAGSET_TagsetFile = util::expand_filename(TAGSET_TagsetFile);
     
     // conll format configuration files
     OutputConllFile = util::expand_filename(OutputConllFile);

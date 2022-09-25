@@ -1,11 +1,3 @@
-
-include_directories(${Boost_INCLUDE_DIRS})
-include_directories(${ICU_INCLUDE_DIRS})
-include_directories(${ZLIB_INCLUDE_DIRS})
-
-link_directories(${Boost_LIBRARY_DIRS})
-link_directories(${ICU_LIBRARY_DIRS})
-
 if (WIN32)
    # compiler definitions for windows
    add_definitions(-DFL_EXPORTS=1 -D_CRT_SECURE_NO_WARNINGS=1 -D_CRT_NONSTDC_NO_DEPRECATE=1 -DNOMINMAX -DNDEBUG=1 -D_WINDOWS=1 -D_USRDLL=1 -DWIN32=1)
@@ -20,7 +12,7 @@ endif()
 if(MSVC)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /W3")
 elseif(CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_GNUCXX)
-  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-sign-compare -pedantic")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-sign-compare -pedantic -O3")
 endif()
 
 # compilation options affecting freeling code.
@@ -39,7 +31,8 @@ version.cc util.cc regexp.cc traces.cc language.cc configfile.cc analyzer.cc ana
 )
 
 add_library(freeling SHARED ${freeling_SRCS})
-target_link_libraries(freeling foma treeler dynet crfsuite ${Boost_LIBRARIES} ${ICU_UC_LIBRARY} ${ICU_I18N_LIBRARY} ${ICU_DATA_LIBRARY}  ${ZLIB_LIBRARIES})
+target_link_libraries(freeling foma treeler dynet crfsuite ${Boost_LIBRARIES} ${ICU_UC_LIBRARY} ${ICU_I18N_LIBRARY} ${ICU_DATA_LIBRARY} ZLIB::ZLIB)
+
   
 install(TARGETS freeling DESTINATION lib)
 #install(TARGETS freeling

@@ -10,9 +10,8 @@ if(${CMAKE_SOURCE_DIR} STREQUAL ${CMAKE_BINARY_DIR})
 endif()
 
 project(FreeLing)
-set(PACKAGE_NAME "FreeLing") 
 set(VERSION "4.3_devel") 
-set(PACKAGE_STRING "\"${PACKAGE_NAME} ${VERSION}\"")
+set(PACKAGE_STRING "\"${CMAKE_PROJECT_NAME} ${VERSION}\"")
 set(CMAKE_INSTALL_RPATH "${CMAKE_INSTALL_PREFIX}/lib") # Needed to find libraries if not installed in system path
 
 # Add compiler definitions
@@ -47,7 +46,8 @@ if (WIN32)
   # Icu component names differ in windows
   find_package(ICU COMPONENTS dt in uc REQUIRED)
 else()
-  find_package(ICU COMPONENTS data i18n uc REQUIRED)
+  #  find_package(ICU COMPONENTS data i18n uc REQUIRED)
+  find_package(ICU REQUIRED COMPONENTS data i18n uc)
   find_package(Threads REQUIRED)
 endif()
 
@@ -86,6 +86,8 @@ foreach (lg ${LANGUAGES})
 	   PATTERN "Makefile*" EXCLUDE)
 endforeach()
 install(DIRECTORY data/common
+        DESTINATION share/freeling)
+install(DIRECTORY data/config
         DESTINATION share/freeling)
 
 if (WIN32)
@@ -154,3 +156,8 @@ foreach (lg ${LANGUAGES})
   
 endforeach()
 
+
+#Setup CMake to run tests
+enable_testing()
+add_test(NAME fl_test
+         COMMAND fl_test ${CMAKE_INSTALL_PREFIX})

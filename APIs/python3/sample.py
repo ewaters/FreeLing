@@ -99,36 +99,57 @@ DATA = os.environ["FREELINGDIR"]+"/share/freeling/";
 # Init locales
 pyfreeling.util_init_locale("default");
 
+tr = pyfreeling.traces()
+tr.set_trace_level(7)
+tr.set_trace_level(0)
+tr.set_trace_module(0xFFFFFF)
+
 # create language detector. Used just to show it. Results are printed
 # but ignored (after, it is assumed language is LANG)
-la=pyfreeling.lang_ident(DATA+"common/lang_ident/ident-few.dat");
+la = pyfreeling.lang_ident(DATA+"common/lang_ident/ident-few.dat");
+LANG = "es"
 
-# create options set for maco analyzer. Default values are Ok, except for data files.
-LANG="es";
-op= pyfreeling.maco_options(LANG);
-op.set_data_files( "", 
-                   DATA + "common/punct.dat",
-                   DATA + LANG + "/dicc.src",
-                   DATA + LANG + "/afixos.dat",
-                   "",
-                   DATA + LANG + "/locucions.dat", 
-                   DATA + LANG + "/np.dat",
-                   DATA + LANG + "/quantities.dat",
-                   DATA + LANG + "/probabilitats.dat");
+# create options set for maco analyzer. 
+op = pyfreeling.analyzer_config()
+
+# define creation options for morphological analyzer modules
+op.config_opt.Lang = LANG
+op.config_opt.MACO_PunctuationFile = DATA + "common/punct.dat"
+op.config_opt.MACO_DictionaryFile = DATA + LANG + "/dicc.src"
+op.config_opt.MACO_AffixFile = DATA + LANG + "/afixos.dat" 
+op.config_opt.MACO_CompoundFile = DATA + LANG + "/compounds.dat" 
+op.config_opt.MACO_LocutionsFile = DATA + LANG + "/locucions.dat"
+op.config_opt.MACO_NPDataFile = DATA + LANG + "/np.dat"
+op.config_opt.MACO_QuantitiesFile = DATA + LANG + "/quantities.dat"
+op.config_opt.MACO_ProbabilityFile = DATA + LANG + "/probabilitats.dat"
+
+# chose which modules among those available will be used by default
+# (can be changed at each call if needed)
+op.invoke_opt.MACO_AffixAnalysis = True
+op.invoke_opt.MACO_CompoundAnalysis = True
+op.invoke_opt.MACO_MultiwordsDetection = True
+op.invoke_opt.MACO_NumbersDetection = True
+op.invoke_opt.MACO_PunctuationDetection = True 
+op.invoke_opt.MACO_DatesDetection = True
+op.invoke_opt.MACO_QuantitiesDetection = True
+op.invoke_opt.MACO_DictionarySearch = True
+op.invoke_opt.MACO_ProbabilityAssignment = True
+op.invoke_opt.MACO_NERecognition = True
+op.invoke_opt.MACO_RetokContractions = True
 
 # create analyzers
 tk=pyfreeling.tokenizer(DATA+LANG+"/tokenizer.dat");
 sp=pyfreeling.splitter(DATA+LANG+"/splitter.dat");
 sid=sp.open_session();
+
 mf=pyfreeling.maco(op);
 
-# activate mmorpho odules to be used in next call
-mf.set_active_options(False, True, True, True,  # select which among created 
-                      True, True, False, True,  # submodules are to be used. 
-                      True, True, True, True ); # default: all created submodules are used
-
 # create tagger, sense anotator, and parsers
-tg=pyfreeling.hmm_tagger(DATA+LANG+"/tagger.dat",True,2);
+op.config_opt.TAGGER_HMMFile = DATA+LANG+"/tagger.dat"
+op.invoke_opt.TAGGER_Retokenize = True
+op.invoke_opt.TAGGER_ForceSelect = pyfreeling.RETOK
+tg=pyfreeling.hmm_tagger(op);
+
 sen=pyfreeling.senses(DATA+LANG+"/senses.dat");
 parser= pyfreeling.chart_parser(DATA+LANG+"/chunker/grammar-chunk.dat");
 dep=pyfreeling.dep_txala(DATA+LANG+"/dep_txala/dependences.dat", parser.get_start_symbol());
@@ -143,11 +164,11 @@ while (lin) :
     l = tk.tokenize(lin);
     ls = sp.split(sid,l,False);
 
-    ls = mf.analyze(ls);
-    ls = tg.analyze(ls);
-    ls = sen.analyze(ls);
-    ls = parser.analyze(ls);
-    ls = dep.analyze(ls);
+    ls = mf.analyze_sentence_list(ls);
+    ls = tg.analyze_sentence_list(ls);
+    ls = sen.analyze_sentence_list(ls);
+    ls = parser.analyze_sentence_list(ls);
+    ls = dep.analyze_sentence_list(ls);
 
     ## output results
     for s in ls :

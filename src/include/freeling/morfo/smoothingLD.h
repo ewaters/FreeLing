@@ -29,14 +29,19 @@
 #ifndef _SMOOTHING_LD
 #define _SMOOTHING_LD
 
+#include <cmath>
+using std::log;
+using std::fabs;
+
 #include "freeling/morfo/traces.h"
 #include "freeling/morfo/util.h"
 #include "freeling/morfo/configfile.h"
 
+
 #undef MOD_TRACENAME
 #define MOD_TRACENAME L"SMOOTHING"
-#undef MOD_TRACEMODULE
-#define MOD_TRACEMODULE LANGIDENT_TRACE
+#undef MOD_TRACECODE
+#define MOD_TRACECODE LANGIDENT_TRACE
 
 namespace freeling {
   
@@ -120,6 +125,7 @@ namespace freeling {
           if (order!=0 and order!=x)
             ERROR_CRASH(L"ERROR - Specified model order does not match ngram size");
           order = x;
+	  TRACE(8,L"Ngram order is "<<order);
           break;
         }
 
@@ -150,7 +156,8 @@ namespace freeling {
           else if (order != ngram.size()) 
             ERROR_CRASH(L"ERROR - Mixed order ngrams in input file, or specified model order does not match ngram size");
 
-          // add ngram (and n-i gram) counts to the model
+	  TRACE(8,L"read ngram = ["<<ngram<<L"] counts="<<c);
+	  // add ngram (and n-i gram) counts to the model
           while (ngram.size()>1) {
             // insert ngram count, or increase if it already existed
             std::pair<typename std::map<G,double>::iterator,bool> x = counts.insert(make_pair(ngram,c));
@@ -158,6 +165,7 @@ namespace freeling {
             // shorten n gram and loop to insert n-1 gram
             ngram.erase(std::prev(ngram.end()));
           }
+
           // unigram is left. Add it
           std::pair<typename std::map<G,double>::iterator,bool> x = counts.insert(make_pair(ngram,c));
           if (x.second) ntypes++; // new unigram inserted, increase type count
@@ -176,7 +184,7 @@ namespace freeling {
       // precompute logs needed for logprob
       if (vsize<=ntypes)
         ERROR_CRASH(L"VocabularySize can not be smaller than number of different observed unigrams.");
-      pUnseen = -log(vsize-ntypes); // log version of 1/(vsize-ntypes)
+      pUnseen = -log(vsize-ntypes); // log version of 1/(vsize-ntypes) = 1/N0;  log(1/N0) = log(1)-log(N0) = -log(N0)
       nobs = log(nobs);
       for (typename std::map<G,double>::iterator c=counts.begin(); c!=counts.end(); c++) 
         c->second = log(c->second); 
@@ -199,10 +207,11 @@ namespace freeling {
       // log count of complete ngram
       double c = count(seq);
 
+      TRACE(7,L"Computing prob for "<<ngram<<"+"<<z);
       if (ngram.size()==0) {
         // no conditioning history, use unigrams (seq = [z])
         if (c>=0) return notalpha + c - nobs;  // log version of (1-alpha)*count(c)/nobs
-        else return alpha + pUnseen;   // log version of alpha * punseen
+        else return alpha + pUnseen;   // log version of alpha * (1/N0)
       }
       
       else {
